@@ -1,0 +1,50 @@
+/* Animación de aparición suave para el cambio de pestañas */
+.tab-content {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Ocultar las flechas nativas (spinners) en los campos de número para un diseño más limpio */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield; /* Soporte para Firefox */
+}
+
+/* Estilo personalizado para la selección de texto (resaltado) */
+::selection {
+    background-color: rgba(59, 130, 246, 0.5); /* Color azul acorde a Tailwind */
+    color: #ffffff;
+}
+
+/* Personalización sutil de la barra de desplazamiento */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #1f2937; 
+}
+
+::-webkit-scrollbar-thumb {
+    background: #4b5563; 
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #6b7280; 
+}
