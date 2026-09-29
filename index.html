@@ -26,7 +26,7 @@
             <select id="mode-selector" class="w-full bg-gray-700 border border-gray-600 text-white rounded-lg py-3 px-4 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all font-medium cursor-pointer">
                 <option value="tab-resultado">Calcular Resultado (Fotos a Video)</option>
                 <option value="tab-intervalo">Calcular Intervalo (Configurar Cámara)</option>
-                <option value="tab-video">Acelerar Video (Edición y Proceso)</option>
+                <option value="tab-video">Procesar Video (Time-Lapse web)</option>
             </select>
             <!-- Ícono de flecha para el select -->
             <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-400">
@@ -121,27 +121,59 @@
             </div>
         </div>
 
-        <!-- PESTAÑA 3: Acelerar Video -->
+        <!-- PESTAÑA 3: Procesar Video -->
         <div id="tab-video" class="tab-content hidden">
             <div class="space-y-4">
                 <div>
-                    <label class="block text-sm text-gray-400 mb-1">Duración original del video (minutos)</label>
-                    <input type="number" id="vid-original-duration" value="30" min="0.1" step="0.1" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+                    <label class="block text-sm text-gray-400 mb-1">Video original</label>
+                    <input type="file" id="video-upload" accept="video/mp4,video/x-m4v,video/webm,video/quicktime,video/*" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition cursor-pointer">
                 </div>
-                <div>
-                    <label class="block text-sm text-gray-400 mb-1">Duración deseada (segundos)</label>
-                    <input type="number" id="vid-target-duration" value="15" min="1" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+
+                <div id="video-analysis" class="hidden p-3 bg-gray-700/50 border border-gray-600 rounded-lg text-sm space-y-1">
+                    <div class="flex justify-between"><span class="text-gray-400">Duración original:</span><strong id="vid-original-duration">--</strong></div>
+                    <div class="flex justify-between"><span class="text-gray-400">Resolución:</span><strong id="vid-original-resolution">--</strong></div>
+                    <div class="flex justify-between"><span class="text-gray-400">Aceleración:</span><strong id="vid-speed-multiplier">--</strong></div>
                 </div>
-                
-                <div class="mt-4 p-4 bg-green-900/30 border border-green-800/50 rounded-xl">
-                    <div class="flex flex-col mb-2">
-                        <span class="text-sm text-green-200 mb-1">Velocidad en software de edición:</span>
-                        <span id="vid-speed-multiplier" class="text-2xl font-bold text-green-400">120x</span>
-                        <span id="vid-speed-percent" class="text-sm text-gray-400 mt-1">O colocar: 12000%</span>
+
+                <div class="bg-gray-700/50 border border-gray-600 rounded-lg p-3 space-y-3">
+                    <p class="text-sm font-semibold text-gray-200">Configura una sola opción</p>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="video-target-mode" value="duration" checked>
+                        Duración final
+                    </label>
+                    <div id="video-duration-fields" class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Minutos</label>
+                            <input type="number" id="vid-target-minutes" value="0" min="0" step="1" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-400 mb-1">Segundos</label>
+                            <input type="number" id="vid-target-seconds" value="15" min="0" max="59" step="1" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
+                        <input type="radio" name="video-target-mode" value="speed">
+                        Velocidad de aceleración
+                    </label>
+                    <div id="video-speed-field" class="hidden">
+                        <label class="block text-xs text-gray-400 mb-1">Multiplicador (veces más rápido)</label>
+                        <input type="number" id="vid-target-speed" value="4" min="1" step="0.01" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+                    </div>
+                    <div class="flex justify-between text-sm pt-1">
+                        <span class="text-gray-400">Resultado:</span>
+                        <strong id="vid-calculated-result">--</strong>
                     </div>
                 </div>
 
-                <hr class="border-gray-700 my-4">
+                <div>
+                    <label class="block text-sm text-gray-400 mb-1">Formato de salida</label>
+                    <select id="video-format" class="w-full bg-gray-800 border border-gray-600 rounded-lg p-2.5 text-white focus:border-blue-500 focus:outline-none transition">
+                        <option value="webm">WebM (menor peso)</option>
+                        <option value="mp4">MP4 (si el navegador lo permite)</option>
+                    </select>
+                </div>
+
+                <p class="text-xs text-gray-500">El procesamiento se realiza localmente. La salida se limita a 1280 px y usa compresión media para facilitar su uso en la web.</p>
                 
                 <!-- Procesador de Video Integrado -->
                 <div class="bg-gray-800/50 p-4 rounded-xl border border-gray-700">
@@ -150,9 +182,7 @@
                         Generar Time-Lapse ahora
                     </h3>
                     
-                    <input type="file" id="video-upload" accept="video/mp4,video/x-m4v,video/*" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition cursor-pointer mb-3">
-                    
-                    <button id="btn-process-video" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <button id="btn-process-video" disabled class="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded-lg transition disabled:opacity-50 disabled:cursor-not-allowed">
                         Procesar Video
                     </button>
                     
@@ -164,6 +194,7 @@
                     <div id="process-status" class="mt-3 text-sm text-center text-blue-300 hidden">
                         Procesando... <span id="process-progress">0%</span>
                     </div>
+                    <div id="process-error" class="mt-3 text-sm text-center text-red-300 hidden" role="alert"></div>
                     
                     <a id="download-link" class="hidden w-full mt-3 bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition text-center block">
                         📥 Descargar Time-Lapse

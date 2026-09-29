@@ -1,142 +1,221 @@
 document.addEventListener("DOMContentLoaded", () => {
-    
-    // --- ELEMENTOS DEL DOM ---
     const modeSelector = document.getElementById("mode-selector");
     const tabContents = document.querySelectorAll(".tab-content");
     const fpsInputs = document.querySelectorAll("input[name='fps']");
 
-    // Elementos Pestaña 1 (Resultado)
     const resEventDuration = document.getElementById("res-event-duration");
     const resInterval = document.getElementById("res-interval");
     const resTotalPhotos = document.getElementById("res-total-photos");
     const resFinalDuration = document.getElementById("res-final-duration");
-
-    // Elementos Pestaña 2 (Intervalo)
     const intEventDuration = document.getElementById("int-event-duration");
     const intVideoDuration = document.getElementById("int-video-duration");
     const intTotalPhotos = document.getElementById("int-total-photos");
     const intFinalInterval = document.getElementById("int-final-interval");
 
-    // Elementos Pestaña 3 (Video)
-    const vidOriginalDuration = document.getElementById("vid-original-duration");
-    const vidTargetDuration = document.getElementById("vid-target-duration");
-    const vidSpeedMultiplier = document.getElementById("vid-speed-multiplier");
-    const vidSpeedPercent = document.getElementById("vid-speed-percent");
-
-    // Elementos del Procesador de Video
     const videoUpload = document.getElementById("video-upload");
+    const videoAnalysis = document.getElementById("video-analysis");
+    const vidOriginalDuration = document.getElementById("vid-original-duration");
+    const vidOriginalResolution = document.getElementById("vid-original-resolution");
+    const vidTargetMinutes = document.getElementById("vid-target-minutes");
+    const vidTargetSeconds = document.getElementById("vid-target-seconds");
+    const vidTargetSpeed = document.getElementById("vid-target-speed");
+    const videoTargetModeInputs = document.querySelectorAll("input[name='video-target-mode']");
+    const videoDurationFields = document.getElementById("video-duration-fields");
+    const videoSpeedField = document.getElementById("video-speed-field");
+    const vidSpeedMultiplier = document.getElementById("vid-speed-multiplier");
+    const vidCalculatedResult = document.getElementById("vid-calculated-result");
+    const videoFormat = document.getElementById("video-format");
     const btnProcessVideo = document.getElementById("btn-process-video");
     const hiddenVideo = document.getElementById("hidden-video");
     const processCanvas = document.getElementById("process-canvas");
     const processStatus = document.getElementById("process-status");
     const processProgress = document.getElementById("process-progress");
+    const processError = document.getElementById("process-error");
     const downloadLink = document.getElementById("download-link");
 
-    // --- FUNCIÓN PARA OBTENER LOS FPS SELECCIONADOS ---
+    let selectedVideoURL = null;
+    let selectedFile = null;
+    let isProcessing = false;
+
     const getSelectedFPS = () => {
         const checkedInput = document.querySelector("input[name='fps']:checked");
         return parseInt(checkedInput.value, 10) || 30;
     };
 
-    // --- LÓGICA DE NAVEGACIÓN ---
-    modeSelector.addEventListener("change", (e) => {
-        // Ocultar todas las pestañas
-        tabContents.forEach(tab => tab.classList.add("hidden"));
-        // Mostrar la pestaña seleccionada
-        const targetTab = document.getElementById(e.target.value);
-        if (targetTab) {
-            targetTab.classList.remove("hidden");
-        }
-        // Recalcular valores al cambiar
-        calculateAll();
-    });
+    const getVideoTargetMode = () => document.querySelector("input[name='video-target-mode']:checked").value;
 
-    // --- LÓGICA DE CÁLCULOS ---
+    const formatDuration = (seconds) => {
+        const roundedSeconds = Math.max(0, Math.round(seconds));
+        return `${Math.floor(roundedSeconds / 60)} min ${String(roundedSeconds % 60).padStart(2, "0")} s`;
+    };
+
+    const getDurationInput = () => {
+        const minutes = Number(vidTargetMinutes.value);
+        const seconds = Number(vidTargetSeconds.value);
+        if (!Number.isFinite(minutes) || !Number.isFinite(seconds) || minutes < 0 || seconds < 0 || seconds > 59) {
+            return 0;
+        }
+        return minutes * 60 + seconds;
+    };
+
+    const getVideoSettings = () => {
+        if (!selectedFile || !Number.isFinite(hiddenVideo.duration) || hiddenVideo.duration <= 0) {
+            return null;
+        }
+        if (getVideoTargetMode() === "speed") {
+            const speed = Number(vidTargetSpeed.value);
+            if (!Number.isFinite(speed) || speed < 1) {
+                return null;
+            }
+            return { speed, targetDuration: hiddenVideo.duration / speed };
+        }
+        const targetDuration = getDurationInput();
+        if (targetDuration <= 0 || targetDuration >= hiddenVideo.duration) {
+            return null;
+        }
+        return { speed: hiddenVideo.duration / targetDuration, targetDuration };
+    };
+
+    const showError = (message) => {
+        processError.textContent = message;
+        processError.classList.remove("hidden");
+    };
+
+    const clearError = () => {
+        processError.textContent = "";
+        processError.classList.add("hidden");
+    };
+
+    const updateVideoCalculation = () => {
+        const settings = getVideoSettings();
+        if (!settings) {
+            vidSpeedMultiplier.textContent = "--";
+            vidCalculatedResult.textContent = "--";
+            return;
+        }
+        vidSpeedMultiplier.textContent = `${settings.speed.toFixed(2)}x`;
+        vidCalculatedResult.textContent = `${formatDuration(settings.targetDuration)} · ${settings.speed.toFixed(2)}x`;
+    };
+
     const calculateAll = () => {
         const fps = getSelectedFPS();
-
-        // Cálculo Tab 1 (Fotos y Duración Final)
-        const eDurationMinRes = parseFloat(resEventDuration.value) || 0;
-        const intervalSec = parseFloat(resInterval.value) || 0;
-        
-        if (eDurationMinRes > 0 && intervalSec > 0) {
-            const totalPhotos = Math.floor((eDurationMinRes * 60) / intervalSec);
-            const videoDurationSec = totalPhotos / fps;
-            
+        const eventDuration = Number(resEventDuration.value);
+        const interval = Number(resInterval.value);
+        if (eventDuration > 0 && interval > 0) {
+            const totalPhotos = Math.floor((eventDuration * 60) / interval);
             resTotalPhotos.textContent = totalPhotos.toLocaleString();
-            resFinalDuration.textContent = videoDurationSec.toFixed(1) + " seg";
+            resFinalDuration.textContent = `${(totalPhotos / fps).toFixed(1)} seg`;
         } else {
             resTotalPhotos.textContent = "0";
             resFinalDuration.textContent = "0.0 seg";
         }
 
-        // Cálculo Tab 2 (Fotos e Intervalo a Configurar)
-        const eDurationMinInt = parseFloat(intEventDuration.value) || 0;
-        const targetVideoSec = parseFloat(intVideoDuration.value) || 0;
-
-        if (eDurationMinInt > 0 && targetVideoSec > 0) {
-            const requiredPhotos = Math.floor(targetVideoSec * fps);
-            const requiredInterval = (eDurationMinInt * 60) / requiredPhotos;
-
+        const intervalEventDuration = Number(intEventDuration.value);
+        const targetVideoSeconds = Number(intVideoDuration.value);
+        if (intervalEventDuration > 0 && targetVideoSeconds > 0) {
+            const requiredPhotos = Math.floor(targetVideoSeconds * fps);
             intTotalPhotos.textContent = requiredPhotos.toLocaleString();
-            intFinalInterval.textContent = requiredInterval.toFixed(1) + " seg";
+            intFinalInterval.textContent = `${((intervalEventDuration * 60) / requiredPhotos).toFixed(1)} seg`;
         } else {
             intTotalPhotos.textContent = "0";
             intFinalInterval.textContent = "0.0 seg";
         }
-
-        // Cálculo Tab 3 (Velocidad en Video)
-        const vOriginalMin = parseFloat(vidOriginalDuration.value) || 0;
-        const vTargetSec = parseFloat(vidTargetDuration.value) || 0;
-
-        if (vOriginalMin > 0 && vTargetSec > 0) {
-            const vOriginalSec = vOriginalMin * 60;
-            const multiplier = vOriginalSec / vTargetSec;
-            const percent = multiplier * 100;
-
-            vidSpeedMultiplier.textContent = multiplier.toFixed(2) + "x";
-            vidSpeedPercent.textContent = `O colocar: ${Math.round(percent)}%`;
-        } else {
-            vidSpeedMultiplier.textContent = "0.00x";
-            vidSpeedPercent.textContent = "O colocar: 0%";
-        }
+        updateVideoCalculation();
     };
 
-    // --- ASIGNAR EVENTOS A INPUTS ---
-    const allInputs = [
-        resEventDuration, resInterval, 
-        intEventDuration, intVideoDuration, 
-        vidOriginalDuration, vidTargetDuration
-    ];
-
-    allInputs.forEach(input => {
-        input.addEventListener("input", calculateAll);
-    });
-
-    fpsInputs.forEach(input => {
-        input.addEventListener("change", calculateAll);
-    });
-
-    // Calcular valores iniciales
-    calculateAll();
-
-    // --- PROCESADOR DE VIDEO INTEGRADO ---
-    let isProcessing = false;
-
-    // Habilitar botón al cargar un archivo
-    videoUpload.addEventListener("change", (e) => {
-        if (e.target.files.length > 0 && !isProcessing) {
-            btnProcessVideo.disabled = false;
-        } else {
-            btnProcessVideo.disabled = true;
+    modeSelector.addEventListener("change", (event) => {
+        tabContents.forEach((tab) => tab.classList.add("hidden"));
+        const targetTab = document.getElementById(event.target.value);
+        if (targetTab) {
+            targetTab.classList.remove("hidden");
         }
+        calculateAll();
     });
+
+    [...document.querySelectorAll(
+        "#res-event-duration, #res-interval, #int-event-duration, #int-video-duration, " +
+        "#vid-target-minutes, #vid-target-seconds, #vid-target-speed"
+    )].forEach((input) => input.addEventListener("input", calculateAll));
+    fpsInputs.forEach((input) => input.addEventListener("change", calculateAll));
+
+    videoTargetModeInputs.forEach((input) => input.addEventListener("change", () => {
+        const speedMode = getVideoTargetMode() === "speed";
+        videoDurationFields.classList.toggle("hidden", speedMode);
+        videoSpeedField.classList.toggle("hidden", !speedMode);
+        calculateAll();
+    }));
+
+    videoUpload.addEventListener("change", () => {
+        const file = videoUpload.files[0];
+        clearError();
+        downloadLink.classList.add("hidden");
+        videoAnalysis.classList.add("hidden");
+        btnProcessVideo.disabled = true;
+        selectedFile = null;
+        if (!file) {
+            return;
+        }
+        if (!file.type.startsWith("video/")) {
+            showError("Selecciona un archivo de video válido.");
+            return;
+        }
+        if (selectedVideoURL) {
+            URL.revokeObjectURL(selectedVideoURL);
+        }
+        selectedFile = file;
+        selectedVideoURL = URL.createObjectURL(file);
+        hiddenVideo.src = selectedVideoURL;
+        hiddenVideo.load();
+    });
+
+    hiddenVideo.addEventListener("loadedmetadata", () => {
+        if (!selectedFile || !Number.isFinite(hiddenVideo.duration) || hiddenVideo.duration <= 0) {
+            showError("No fue posible leer la duración del video.");
+            return;
+        }
+        vidOriginalDuration.textContent = formatDuration(hiddenVideo.duration);
+        vidOriginalResolution.textContent = `${hiddenVideo.videoWidth} x ${hiddenVideo.videoHeight} px`;
+        videoAnalysis.classList.remove("hidden");
+        btnProcessVideo.disabled = false;
+        updateVideoCalculation();
+    });
+
+    hiddenVideo.addEventListener("error", () => {
+        btnProcessVideo.disabled = true;
+        showError("El navegador no puede leer este video. Prueba con MP4 o WebM.");
+    });
+
+    const getSupportedMimeType = (format) => {
+        const candidates = format === "mp4"
+            ? ["video/mp4;codecs=avc1.42E01E,mp4a.40.2", "video/mp4"]
+            : ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"];
+        return candidates.find((type) => MediaRecorder.isTypeSupported(type)) || null;
+    };
+
+    const resetProcessingState = () => {
+        isProcessing = false;
+        btnProcessVideo.disabled = !selectedFile;
+        videoUpload.disabled = false;
+    };
 
     btnProcessVideo.addEventListener("click", () => {
-        const file = videoUpload.files[0];
-        if (!file) return;
+        if (isProcessing || !selectedFile) {
+            return;
+        }
+        clearError();
+        const settings = getVideoSettings();
+        if (!settings) {
+            showError(getVideoTargetMode() === "speed"
+                ? "Indica una velocidad igual o mayor que 1x."
+                : "Indica una duración final menor que la duración original.");
+            return;
+        }
+        const mimeType = getSupportedMimeType(videoFormat.value);
+        if (!mimeType) {
+            showError(`Este navegador no puede generar ${videoFormat.value.toUpperCase()}. Selecciona otro formato.`);
+            return;
+        }
 
-        // UI Reset
         isProcessing = true;
         btnProcessVideo.disabled = true;
         videoUpload.disabled = true;
@@ -145,83 +224,108 @@ document.addEventListener("DOMContentLoaded", () => {
         processProgress.textContent = "0%";
 
         const fps = getSelectedFPS();
-        const targetVideoDurationSec = parseFloat(vidTargetDuration.value) || 15;
-        const totalFramesNeeded = Math.floor(targetVideoDurationSec * fps);
-        
-        const videoURL = URL.createObjectURL(file);
-        hiddenVideo.src = videoURL;
+        const scale = Math.min(1, 1280 / hiddenVideo.videoWidth);
+        processCanvas.width = Math.max(1, Math.round(hiddenVideo.videoWidth * scale));
+        processCanvas.height = Math.max(1, Math.round(hiddenVideo.videoHeight * scale));
+        const context = processCanvas.getContext("2d", { alpha: false });
+        const stream = processCanvas.captureStream(fps);
+        const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2_500_000 });
+        const recordedChunks = [];
+        let animationFrameId = null;
+        let stopTimerId = null;
+        let startedAt = 0;
+        let stopped = false;
+        let lastCorrection = 0;
+        const playbackRate = Math.min(4, settings.speed);
 
-        // Cuando los metadatos del video cargan
-        hiddenVideo.onloadedmetadata = () => {
-            const ctx = processCanvas.getContext("2d");
-            processCanvas.width = hiddenVideo.videoWidth;
-            processCanvas.height = hiddenVideo.videoHeight;
-
-            const totalDurationOriginal = hiddenVideo.duration; // Segundos reales del video
-            const timeStep = totalDurationOriginal / totalFramesNeeded; // Salto en segundos por fotograma
-            
-            // Configurar el grabador (MediaRecorder) usando el Canvas
-            const stream = processCanvas.captureStream(fps);
-            const mediaRecorder = new MediaRecorder(stream, { mimeType: "video/webm" });
-            const recordedChunks = [];
-
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    recordedChunks.push(e.data);
-                }
-            };
-
-            mediaRecorder.onstop = () => {
-                // Terminar de generar el video
-                const blob = new Blob(recordedChunks, { type: "video/webm" });
-                const url = URL.createObjectURL(blob);
-                
-                downloadLink.href = url;
-                downloadLink.download = "timelapse_acelerado.webm";
-                
-                // Actualizar UI
-                downloadLink.classList.remove("hidden");
-                processStatus.classList.add("hidden");
-                btnProcessVideo.disabled = false;
-                videoUpload.disabled = false;
-                isProcessing = false;
-                processProgress.textContent = "¡Completado!";
-                
-                URL.revokeObjectURL(videoURL); // Limpiar memoria
-            };
-
-            // Iniciar procesamiento de frames
-            mediaRecorder.start();
-            let currentFrameIndex = 0;
-
-            const processNextFrame = () => {
-                if (currentFrameIndex >= totalFramesNeeded) {
-                    mediaRecorder.stop();
-                    return;
-                }
-                // Adelantar el video oculto al tiempo exacto
-                hiddenVideo.currentTime = currentFrameIndex * timeStep;
-            };
-
-            // Cuando el video termina de "saltar" al tiempo exacto
-            hiddenVideo.onseeked = () => {
-                // Dibujar el frame en el canvas
-                ctx.drawImage(hiddenVideo, 0, 0, processCanvas.width, processCanvas.height);
-                
-                // Actualizar progreso
-                const percentage = Math.round((currentFrameIndex / totalFramesNeeded) * 100);
-                processProgress.textContent = percentage + "%";
-
-                currentFrameIndex++;
-                
-                // Esperar el tiempo correspondiente al FPS para que MediaRecorder grabe bien el tiempo real
-                setTimeout(() => {
-                    processNextFrame();
-                }, 1000 / fps);
-            };
-
-            // Comenzar el primer frame
-            processNextFrame();
+        const finish = () => {
+            if (stopped) {
+                return;
+            }
+            stopped = true;
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            if (stopTimerId !== null) {
+                clearTimeout(stopTimerId);
+            }
+            hiddenVideo.pause();
+            recorder.stop();
         };
+
+        const fail = (message) => {
+            if (stopped) {
+                return;
+            }
+            stopped = true;
+            hiddenVideo.pause();
+            if (animationFrameId !== null) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            if (stopTimerId !== null) {
+                clearTimeout(stopTimerId);
+            }
+            recorder.stop();
+            processStatus.classList.add("hidden");
+            showError(message);
+            resetProcessingState();
+        };
+
+        recorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+        recorder.onerror = () => fail("Ocurrió un error al codificar el video.");
+        recorder.onstop = () => {
+            if (recordedChunks.length === 0) {
+                showError("No se generaron datos de video.");
+                resetProcessingState();
+                return;
+            }
+            const blob = new Blob(recordedChunks, { type: mimeType });
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = `timelapse_acelerado.${videoFormat.value}`;
+            downloadLink.classList.remove("hidden");
+            processStatus.classList.add("hidden");
+            processProgress.textContent = "¡Completado!";
+            resetProcessingState();
+        };
+
+        const drawFrame = () => {
+            if (stopped) {
+                return;
+            }
+            context.drawImage(hiddenVideo, 0, 0, processCanvas.width, processCanvas.height);
+            const elapsed = (performance.now() - startedAt) / 1000;
+            processProgress.textContent = `${Math.min(99, Math.round((elapsed / settings.targetDuration) * 100))}%`;
+            if (settings.speed > playbackRate && elapsed - lastCorrection >= 0.2) {
+                hiddenVideo.currentTime = Math.min(hiddenVideo.duration, elapsed * settings.speed);
+                lastCorrection = elapsed;
+            }
+            if (!stopped) {
+                animationFrameId = requestAnimationFrame(drawFrame);
+            }
+        };
+
+        hiddenVideo.onerror = () => fail("No fue posible leer un fotograma del video.");
+        hiddenVideo.onended = finish;
+        hiddenVideo.muted = true;
+        hiddenVideo.playbackRate = playbackRate;
+
+        const startCapture = () => {
+            hiddenVideo.onseeked = null;
+            context.drawImage(hiddenVideo, 0, 0, processCanvas.width, processCanvas.height);
+            recorder.start();
+            startedAt = performance.now();
+            animationFrameId = requestAnimationFrame(drawFrame);
+            stopTimerId = setTimeout(finish, settings.targetDuration * 1000);
+            hiddenVideo.play().catch(() => fail("No fue posible reproducir el video para procesarlo."));
+        };
+
+        hiddenVideo.onseeked = startCapture;
+        hiddenVideo.currentTime = 0;
     });
+
+    calculateAll();
 });
